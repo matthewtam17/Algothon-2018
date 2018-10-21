@@ -1,0 +1,129 @@
+import numpy
+import quandl
+import tensorflow 
+import datetime
+import csv
+import keras
+import matplotlib.pyplot as plt
+import pandas
+import math
+from keras.layers import Input, Embedding, LSTM, Dense
+from keras.models import Model
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.metrics import mean_squared_error
+
+#data = quandl.get("WIKI/VFC", rows = 5)
+
+#print(data)
+
+#insta_data = quandl.get_table('SMA/INSD', date='2014-01-01', brand_ticker='VFC')
+#print(insta_data)
+
+#data = quandl.get("WIKI/AAPL", rows=5)
+#print (data)
+
+#firstdate = 2018/7/24
+
+#for date in date_list:
+    #fb_data.append(quandl.get_table("SMA/FBD", date = date, qopts={"columns":["fans","new_fans","admin_post_likes","admin_post_shares","admin_post_comments","engagement_score","people_talking_about"]}, brand_ticker = 'KORS'))
+    #inst_data.append(quandl.get_table("SMA/INSD", date = date, qopts={"columns":["followers_count","likes_count","comments_count","engagement_score"]}, brand_ticker = 'KORS'))
+    #fb_data = fb_data[::-1]
+    #inst_data = inst_data[::-1]
+date = "2018-10-21"
+#date_list = [date - datetime.timedelta(days=x) for x in range(0, 90)]
+def prices_testoutput(date):
+    with open('SSE-MKO.csv', 'r') as a:
+        reader = csv.reader(a)
+        prices = list(reader)
+    return prices
+
+def get_inputs(date):
+    base = datetime.datetime.now().date()
+    numdays = 90
+    date_list = [base - datetime.timedelta(days=x) for x in range(0, numdays)]
+    date_list = date_list[::-1]
+    fb_data = []
+    inst_data = []
+
+    with open('facebook.csv', 'r') as f:
+        reader = csv.reader(f)
+        fblist = list(reader)
+    print(fblist)
+    with open('Instagram.csv', 'r') as q:
+        readeri = csv.reader(q)
+        inlist = list(readeri)
+    print(inlist)
+    for date in date_list:
+        date = str(date.day) + "/" + str(date.month) + "/" + str(date.year)
+        for row in fblist:
+            if row[0] == date:
+                fb_data.append(row)
+        for inrow in inlist:
+            if inrow[0] == date:
+                inst_data.append(inrow)
+    #Now we calculate the inputs- delta changes in facebook's likes, comments etc.
+    #Average % change in fans
+    delta = 0
+    print(len(fb_data))
+    for i in range(0,len(fb_data)):
+        delta = delta + (fb_data[i+1][2] - fb_data[i][2])/fb_data[i][2]
+    fbnewfanchange = delta / len(fb_data)
+    #Average % change in people talking about
+    delta = 0
+    for i in range(0,len(fb_data)):
+        delta = delta + (fb_data[i+1][11] - fb_data[i][11])/fb_data[i][11]
+    fbtalkchange = delta / len(fb_data)
+    #REPEAT FOR INSTAGRAM
+    #Average % change in followers
+    delta = 0
+    for i in range(0,len(inst_data)):
+        delta = delta + (inst_data[i+1][2] - inst_data[i][2])/inst_data[i][2]
+    instfollowers = delta / len(inst_data)
+    #Average % change in people talking about
+    delta = 0
+    for i in range(0,len(inst_data)):
+        delta = delta + (inst_data[i+1][11] - inst_data[i][11])/inst_data[i][11]
+    insttalk = delta / len(inst_data)
+    # return inputs
+    return fbnewfanchange, fbtalkchange, instfollowers,insttalk, date_list
+#Machine Learning Model- we use kera, LSTM since data is time series data
+
+fbnewfanchange, fbtalkchange, instfollowers,insttalk, date_list = get_inputs(date)
+fbfaninput = Input(shape=(100,), dtype='int32', name='main_input')
+x = Embedding(output_dim=512, input_dim=10000, input_length=100)(fbfaninput)
+lstm_out = LSTM(32)(x)
+fbtalkinput = Input(shape=(5,), name='aux_input1')
+instfollowinput = Input(shape=(5,), name='aux_input2')
+insttalkinput = Input(shape=(5,), name='aux_input3')
+x = keras.layers.concatenate([lstm_out, fbtalkinput])
+x = keras.layers.concatenate([lstm_out, instfollowinput])
+x = keras.layers.concatenate([lstm_out, insttalkinput])
+x = Dense(64, activation='relu')(x)
+x = Dense(64, activation='relu')(x)
+x = Dense(64, activation='relu')(x)
+main_output = Dense(1, activation='sigmoid', name='main_output')(x)
+model = Model(inputs=[fbfaninput,fbtalkinput,instfollowinput,insttalkinput], outputs=[main_output])
+model.compile(optimizer='rmsprop',
+              loss={'main_output': 'binary_crossentropy', 'aux_output': 'binary_crossentropy'},
+              loss_weights={'main_output': 1., 'aux_output': 0.2})
+# And trained it via:
+model.fit({'main_input': fbnewfanchange, 'aux_input': [fbtalkchange,instfollowers,insttalk] },
+          {'main_output': main_output}, epochs=50, batch_size=32)
+
+
+serie,= plt.plot(scaler.inverse_transform(dataset)[:,2])
+prediccion_entrenamiento,=plt.plot(main_output[:,2],linestyle='--')
+plt.title('Valuation of KORS over time')
+plt.ylabel('Valuation')
+plt.xlabel('Time/date')
+plt.legend([serie,prediccion_entrenamiento],['Actual','Modelled'], loc='upper right')
+
+
+    
+    
+#inst_data = quandl.get("SMA/INSD", rows = 5)
+    
+#print(fb_data)
+#print(inst_data)
+
+
