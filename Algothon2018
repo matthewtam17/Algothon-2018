@@ -39,7 +39,7 @@ def prices_testoutput(date):
 
 def get_inputs(date):
     base = datetime.datetime.now().date()
-    numdays = 90
+    numdays = 700
     date_list = [base - datetime.timedelta(days=x) for x in range(0, numdays)]
     date_list = date_list[::-1]
     fb_data = []
@@ -48,13 +48,11 @@ def get_inputs(date):
     with open('facebook.csv', 'r') as f:
         reader = csv.reader(f)
         fblist = list(reader)
-    print(fblist)
     with open('Instagram.csv', 'r') as q:
         readeri = csv.reader(q)
         inlist = list(readeri)
-    print(inlist)
     for date in date_list:
-        date = str(date.day) + "/" + str(date.month) + "/" + str(date.year)
+        date = str(date.month) + "/" + str(date.day) + "/" + str(date.year)
         for row in fblist:
             if row[0] == date:
                 fb_data.append(row)
@@ -64,25 +62,24 @@ def get_inputs(date):
     #Now we calculate the inputs- delta changes in facebook's likes, comments etc.
     #Average % change in fans
     delta = 0
-    print(len(fb_data))
-    for i in range(0,len(fb_data)):
-        delta = delta + (fb_data[i+1][2] - fb_data[i][2])/fb_data[i][2]
+    for i in range(0,len(fb_data)-1):
+        delta = delta + (int(fb_data[i+1][2]) - int(fb_data[i][2]))/(int(fb_data[i][2])+1)
     fbnewfanchange = delta / len(fb_data)
     #Average % change in people talking about
     delta = 0
-    for i in range(0,len(fb_data)):
-        delta = delta + (fb_data[i+1][11] - fb_data[i][11])/fb_data[i][11]
+    for i in range(0,len(fb_data)-1):
+        delta = delta + (int(fb_data[i+1][11]) - int(fb_data[i][11]))/(int(fb_data[i][11])+1)
     fbtalkchange = delta / len(fb_data)
     #REPEAT FOR INSTAGRAM
     #Average % change in followers
     delta = 0
-    for i in range(0,len(inst_data)):
-        delta = delta + (inst_data[i+1][2] - inst_data[i][2])/inst_data[i][2]
+    for i in range(0,len(inst_data)-1):
+        delta = delta + (int(inst_data[i+1][1]) - int(inst_data[i][1]))/(int(inst_data[i][1])+1)
     instfollowers = delta / len(inst_data)
-    #Average % change in people talking about
+    #Average % change in likes count
     delta = 0
-    for i in range(0,len(inst_data)):
-        delta = delta + (inst_data[i+1][11] - inst_data[i][11])/inst_data[i][11]
+    for i in range(0,len(inst_data)-1):
+        delta = delta + (int(inst_data[i+1][4]) - int(inst_data[i][4]))/(int(inst_data[i][4])+1)
     insttalk = delta / len(inst_data)
     # return inputs
     return fbnewfanchange, fbtalkchange, instfollowers,insttalk, date_list
@@ -101,13 +98,13 @@ x = keras.layers.concatenate([lstm_out, insttalkinput])
 x = Dense(64, activation='relu')(x)
 x = Dense(64, activation='relu')(x)
 x = Dense(64, activation='relu')(x)
-main_output = Dense(1, activation='sigmoid', name='main_output')(x)
-model = Model(inputs=[fbfaninput,fbtalkinput,instfollowinput,insttalkinput], outputs=[main_output])
+main_output = Dense(1, activation='sigmoid', name='output')(x)
+model = Model(inputs=[fbfaninput,fbtalkinput,instfollowinput,insttalkinput], outputs=['output'])
 model.compile(optimizer='rmsprop',
-              loss={'main_output': 'binary_crossentropy', 'aux_output': 'binary_crossentropy'},
-              loss_weights={'main_output': 1., 'aux_output': 0.2})
+              loss={'main_output': 'binary_crossentropy'},
+              loss_weights={'main_output': 1})
 # And trained it via:
-model.fit({'main_input': fbnewfanchange, 'aux_input': [fbtalkchange,instfollowers,insttalk] },
+model.fit({'main_input': fbnewfanchange,'aux_input': [fbtalkchange,instfollowers,insttalk] },
           {'main_output': main_output}, epochs=50, batch_size=32)
 
 
